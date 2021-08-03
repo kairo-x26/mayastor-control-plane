@@ -14,31 +14,44 @@
 
 use crate::apis::IntoVec;
 
-/// NodeState : deemed state of the node
+/// NodeState : mayastor storage node information
 
-/// deemed state of the node
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum NodeState {
-    #[serde(rename = "Unknown")]
-    Unknown,
-    #[serde(rename = "Online")]
-    Online,
-    #[serde(rename = "Offline")]
-    Offline,
+/// mayastor storage node information
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct NodeState {
+    /// gRPC endpoint of the mayastor instance
+    #[serde(rename = "grpcEndpoint")]
+    pub grpc_endpoint: String,
+    /// storage node identifier
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "status")]
+    pub status: crate::models::NodeStatus,
 }
 
-impl ToString for NodeState {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Unknown => String::from("Unknown"),
-            Self::Online => String::from("Online"),
-            Self::Offline => String::from("Offline"),
+impl NodeState {
+    /// NodeState using only the required fields
+    pub fn new(
+        grpc_endpoint: impl Into<String>,
+        id: impl Into<String>,
+        status: impl Into<crate::models::NodeStatus>,
+    ) -> NodeState {
+        NodeState {
+            grpc_endpoint: grpc_endpoint.into(),
+            id: id.into(),
+            status: status.into(),
         }
     }
-}
-
-impl Default for NodeState {
-    fn default() -> Self {
-        Self::Unknown
+    /// NodeState using all fields
+    pub fn new_all(
+        grpc_endpoint: impl Into<String>,
+        id: impl Into<String>,
+        status: impl Into<crate::models::NodeStatus>,
+    ) -> NodeState {
+        NodeState {
+            grpc_endpoint: grpc_endpoint.into(),
+            id: id.into(),
+            status: status.into(),
+        }
     }
 }
