@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-agents
+  namespace: mayastor
+  labels:
+    app: core-agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: core-agents
+  template:
+    metadata:
+      labels:
+        app: core-agents
+    spec:
+      containers:
+        - name: core
+          image: {{ .Values.mayastorCP.registry }}mayadata/mcp-core:{{ .Values.mayastorCP.tag}}
+          imagePullPolicy: {{ .Values.mayastorCP.pullPolicy }}
+          args:
+            - "-smayastor-etcd"
+            - "-nnats"
+
+      imagePullSecrets:
+        - name: regcred

@@ -1,3 +1,5 @@
+---
+# Source: mayastor-control-plane/templates/rest-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
