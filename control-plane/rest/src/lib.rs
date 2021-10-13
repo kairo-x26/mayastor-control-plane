@@ -17,7 +17,7 @@ pub mod versions;
 
 use common_lib::types::v0::openapi::client;
 
-/// Actix Rest Client
+/// Tower Rest Client
 #[derive(Clone)]
 pub struct RestClient {
     openapi_client_v0: client::direct::ApiClient,
