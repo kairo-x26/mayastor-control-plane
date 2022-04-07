@@ -1,18 +1,19 @@
 use crate::collect::{
-    archive,
+    archive, common,
+    common::{DumpConfig, Stringer},
+    constants::MAYASTOR_SERVICE,
     error::Error,
     k8s_resources::k8s_resource_dump::K8sResourceDumperClient,
-    logs::{LogCollection, Logger},
+    logs::{LogCollection, LogResource, Logger},
     persistent_store::etcd::EtcdStore,
     resources::{
         node::NodeClientWrapper, pool::PoolClientWrapper, volume::VolumeClientWrapper, Resourcer,
     },
     rest_wrapper::rest_wrapper_client::RestClient,
 };
-use chrono::Local;
 use std::{path::PathBuf, process};
 
-/// SystemDumper interacts with various services to collect information,
+/// SystemDumper interacts with various services to collect information like mayastor resource(s),
 /// logs of mayastor service and state of mayastor artifacts in etcd
 pub(crate) struct SystemDumper {
     rest_client: &'static RestClient,
@@ -28,26 +29,16 @@ impl SystemDumper {
     /// 1.1 Create new archive in given directory and create temporary directory
     /// in given directory to generate dump files
     /// 1.2 Instantiate all required objects to interact with various other modules
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn get_or_panic_system_dumper(
-        rest_client: &'static RestClient,
-        dir_path: String,
-        namespace: String,
-        loki_uri: Option<String>,
-        etcd_uri: Option<String>,
-        since: humantime::Duration,
-        kube_config_path: Option<std::path::PathBuf>,
-        timeout: humantime::Duration,
-    ) -> Self {
+    pub(crate) async fn get_or_panic_system_dumper(config: DumpConfig) -> Self {
         // creates a temporary directory inside given directory
-        let new_dir = match create_and_get_directory_path(dir_path.clone()) {
+        let new_dir = match common::create_and_get_tmp_directory(config.output_directory.clone()) {
             Ok(val) => val,
             Err(e) => {
                 println!("Failed to create temporary, {:?}", e);
                 process::exit(1);
             }
         };
-        let archive = match archive::Archive::new(dir_path) {
+        let archive = match archive::Archive::new(config.output_directory) {
             Ok(val) => val,
             Err(err) => {
                 println!("Failed to create archive, {:?}", err);
@@ -56,26 +47,27 @@ impl SystemDumper {
         };
 
         let logger = LogCollection::new_logger(
-            kube_config_path.clone(),
-            namespace.clone(),
-            loki_uri,
-            since,
-            timeout,
+            config.kube_config_path.clone(),
+            config.namespace.clone(),
+            config.loki_uri,
+            config.since,
+            config.timeout,
         )
         .await
         .expect("Failed to initialize logging service");
 
         let k8s_resource_dumper =
-            K8sResourceDumperClient::new(kube_config_path.clone(), namespace.clone())
+            K8sResourceDumperClient::new(config.kube_config_path.clone(), config.namespace.clone())
                 .await
                 .expect("Failed to instantiate the k8s resource dumper client");
 
-        let etcd_dumper = EtcdStore::new(kube_config_path, etcd_uri, namespace)
-            .await
-            .expect("Failed to initialize etcd service");
+        let etcd_dumper =
+            EtcdStore::new(config.kube_config_path, config.etcd_uri, config.namespace)
+                .await
+                .expect("Failed to initialize etcd service");
 
         SystemDumper {
-            rest_client,
+            rest_client: config.rest_client,
             archive,
             dir_path: new_dir,
             logger,
@@ -106,6 +98,18 @@ impl SystemDumper {
         // Fetch required logging resources
         let mut resources = self.logger.get_control_plane_logging_services().await?;
         resources.extend(self.logger.get_data_plane_logging_services().await?);
+        // NOTE: MAYASTOR-IO services will not be available when MAYASTOR-IO pod is down.
+        //       Lets add information from mayastor node resources.
+        let node_topologer_resources = node_topologer.get_all_resource_info();
+        node_topologer_resources.iter().for_each(|topo_resource| {
+            resources.insert(LogResource {
+                container_name: topo_resource.get_container_name(),
+                label_selector: topo_resource.get_label_selector().as_string(','),
+                host_name: Some(topo_resource.get_host_name()),
+                service_type: MAYASTOR_SERVICE.to_string(),
+            });
+        });
+
         println!("Collecting logs of following services: \n {:#?}", resources);
 
         self.logger
@@ -113,7 +117,7 @@ impl SystemDumper {
             .await?;
 
         self.k8s_resource_dumper
-            .dump_k8s_resources(self.dir_path.clone())
+            .dump_k8s_resources(self.dir_path.clone(), None)
             .await?;
 
         let mut path: PathBuf = std::path::PathBuf::new();
@@ -132,13 +136,4 @@ impl SystemDumper {
         std::fs::remove_dir_all(self.dir_path.clone())?;
         Ok(())
     }
-}
-
-// Creates new temporary directory to store mayastor artifacts in given directory
-fn create_and_get_directory_path(dir_path: String) -> Result<String, Error> {
-    let date = Local::now();
-    let suffix_dir_name = format!("tmp-mayastor-{}", date.format("%Y-%m-%d-%H-%M-%S"));
-    let new_dir_path = std::path::Path::new(&dir_path).join(suffix_dir_name);
-    std::fs::create_dir_all(new_dir_path.clone())?;
-    Ok(new_dir_path.into_os_string().into_string().unwrap())
 }
