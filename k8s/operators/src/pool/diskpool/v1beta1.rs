@@ -35,14 +35,17 @@ pub struct DiskPoolSpec {
 
 impl DiskPoolSpec {
     /// Create a new DiskPoolSpec from the node and the disks.
+    #[allow(dead_code)]
     pub fn new(node: String, disks: Vec<String>) -> Self {
         Self { node, disks }
     }
     /// The node the pool is placed on.
+    #[allow(dead_code)]
     pub fn node(&self) -> String {
         self.node.clone()
     }
     /// The disk devices that compose the pool.
+    #[allow(dead_code)]
     pub fn disks(&self) -> Vec<String> {
         self.disks.clone()
     }
@@ -105,6 +108,7 @@ impl Default for DiskPoolStatus {
 
 impl DiskPoolStatus {
     /// Set when Pool is not found for some reason.
+    #[allow(dead_code)]
     pub fn not_found(status: &Option<Self>) -> Self {
         Self {
             cr_state: status.clone().unwrap_or_default().cr_state,
@@ -114,6 +118,7 @@ impl DiskPoolStatus {
     }
 
     /// Set when operator is attempting delete on pool.
+    #[allow(dead_code)]
     pub fn terminating(p: Pool) -> Self {
         let state = p.state.unwrap_or_default();
         let free = if state.capacity > state.used {
@@ -131,6 +136,7 @@ impl DiskPoolStatus {
     }
 
     /// Set when deleting a Pool which is not accessible.
+    #[allow(dead_code)]
     pub fn terminating_when_unknown() -> Self {
         Self {
             cr_state: CrPoolState::Terminating,
@@ -139,6 +145,7 @@ impl DiskPoolStatus {
         }
     }
 
+    #[allow(dead_code)]
     pub fn mark_unknown() -> Self {
         Self {
             cr_state: CrPoolState::Created,
