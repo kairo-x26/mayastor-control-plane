@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+import "v1/misc/common.proto";
+
+package v1.dr_pair;
+
+// An S3-compatible object store both clusters can reach.
+//
+// Credential values are deliberately absent: they are the agent's, taken from its
+// environment. The secret names are references for whoever mounts them.
+message DrS3Transport {
+  // Endpoint URL of the store.
+  string endpoint = 1;
+  // Bucket the relationships live in.
+  string bucket = 2;
+  // Key prefix within the bucket, when it is shared with something else.
+  optional string prefix = 3;
+  // Secret holding the credentials the cycle and convergence paths use.
+  optional string credentials_secret = 4;
+  // Secret holding the collector's credentials, the only identity that deletes.
+  optional string collector_credentials_secret = 5;
+}
+
+// Where a relationship's store lives, and how it is reached.
+message DrTransport {
+  oneof transport {
+    DrS3Transport s3 = 1;
+  }
+}
+
+// What a destination may create for itself when it meets a volume it has never seen.
+message DrDiscovery {
+  // Namespace a discovered volume may be created in.
+  optional string namespace = 1;
+  // Storage class a discovered volume is created with.
+  optional string storage_class = 2;
+  // Largest volume that may be created, in bytes.
+  optional uint64 max_volume_size = 3;
+}
+
+// The pairing of this cluster with a peer, and the store they share.
+message DrClusterPair {
+  // How volumes refer to this pair.
+  string id = 1;
+  // This cluster's name in the store.
+  string cluster = 2;
+  // This cluster's own identity, filled in by the agent rather than configured.
+  optional string cluster_uid = 3;
+  // The peer's name in the store.
+  string peer = 4;
+  // Where the store is.
+  DrTransport transport = 5;
+  // What a destination may auto-create under this pair.
+  DrDiscovery discovery = 6;
+}
+
+// Multiple cluster pairs.
+message DrClusterPairs {
+  repeated DrClusterPair entries = 1;
+  // Token to resume from, when more remain.
+  optional uint64 next_token = 2;
+}
+
+// Request type for a CreateDrClusterPair request.
+//
+// Creating a pair that already exists with the same terms is not an error: an operator
+// reconciling the same desired state converges rather than failing on the second pass.
+message CreateDrClusterPairRequest {
+  string id = 1;
+  string cluster = 2;
+  string peer = 3;
+  DrTransport transport = 4;
+  DrDiscovery discovery = 5;
+}
+
+// Request type for a GetDrClusterPair request.
+message GetDrClusterPairRequest {
+  string id = 1;
+}
+
+// Request type for a ListDrClusterPairs request.
+message ListDrClusterPairsRequest {}
+
+// Request type for a DestroyDrClusterPair request.
+message DestroyDrClusterPairRequest {
+  string id = 1;
+}
+
+// Reply carrying a single cluster pair, or why there is none.
+message DrClusterPairReply {
+  oneof reply {
+    DrClusterPair pair = 1;
+    common.ReplyError error = 2;
+  }
+}
+
+// Reply carrying a page of cluster pairs, or why there is none.
+message DrClusterPairsReply {
+  oneof reply {
+    DrClusterPairs pairs = 1;
+    common.ReplyError error = 2;
+  }
+}
+
+// Reply to a destroy, carrying only a failure.
+message DestroyDrClusterPairReply {
+  optional common.ReplyError error = 1;
+}
+
+service DrPairGrpc {
+  rpc CreateDrClusterPair (CreateDrClusterPairRequest) returns (DrClusterPairReply) {}
+  rpc GetDrClusterPair (GetDrClusterPairRequest) returns (DrClusterPairReply) {}
+  rpc ListDrClusterPairs (ListDrClusterPairsRequest) returns (DrClusterPairsReply) {}
+  rpc DestroyDrClusterPair (DestroyDrClusterPairRequest) returns (DestroyDrClusterPairReply) {}
+}
