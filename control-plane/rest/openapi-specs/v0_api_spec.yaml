@@ -2603,6 +2603,103 @@ paths:
             $ref: '#/components/responses/ServerError'
       security:
         - JWT: [ ]
+  /dr/pairs:
+    get:
+      tags:
+        - DrPairs
+      operationId: get_dr_pairs
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DrClusterPair'
+        '4XX':
+          $ref: '#/components/responses/ClientError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - JWT: [ ]
+  '/dr/pairs/{pair_id}':
+    put:
+      tags:
+        - DrPairs
+      operationId: put_dr_pair
+      description: |-
+        Create the pair, or adopt one that already exists with the same terms. Repeating the
+        call is not an error, so an operator reconciling the same desired state converges
+        rather than failing on the second pass.
+      parameters:
+        - in: path
+          name: pair_id
+          required: true
+          schema:
+            $ref: '#/components/schemas/DrPairId'
+      requestBody:
+        description: Terms of the cluster pair.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDrClusterPairBody'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrClusterPair'
+        '4XX':
+          $ref: '#/components/responses/ClientError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - JWT: [ ]
+    get:
+      tags:
+        - DrPairs
+      operationId: get_dr_pair
+      parameters:
+        - in: path
+          name: pair_id
+          required: true
+          schema:
+            $ref: '#/components/schemas/DrPairId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrClusterPair'
+        '4XX':
+          $ref: '#/components/responses/ClientError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - JWT: [ ]
+    delete:
+      tags:
+        - DrPairs
+      operationId: del_dr_pair
+      parameters:
+        - in: path
+          name: pair_id
+          required: true
+          schema:
+            $ref: '#/components/schemas/DrPairId'
+      responses:
+        '204':
+          description: OK
+        '4XX':
+          $ref: '#/components/responses/ClientError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - JWT: [ ]
 components:
   securitySchemes:
     JWT:
@@ -2626,6 +2723,111 @@ components:
       description: storage node identifier
       example: io-engine-1
       type: string
+    DrPairId:
+      description: Identifier of a dr cluster pair.
+      example: dr-west
+      type: string
+    DrClusterId:
+      description: Name of a cluster within a dr relationship.
+      example: east
+      type: string
+    DrClusterUid:
+      description: |-
+        A cluster's own identity, as its control plane keys its persistent store on. Filled
+        in by the agent rather than configured, so it is absent until the agent has read it.
+      example: 9c2b7e14-5f3a-4a21-9f0e-1d2c3b4a5e6f
+      type: string
+    DrS3Transport:
+      description: |-
+        An S3-compatible object store both clusters can reach. Credential values are
+        deliberately absent - they are the agent's, taken from its environment. The secret
+        names are references for whoever mounts them, which is a different thing.
+      type: object
+      properties:
+        endpoint:
+          description: Endpoint URL of the store.
+          type: string
+        bucket:
+          description: Bucket the relationships live in.
+          type: string
+        prefix:
+          description: Key prefix within the bucket, when it is shared with something else.
+          type: string
+        credentialsSecret:
+          description: |-
+            Name of the secret holding the credentials the cycle and convergence paths use.
+            That identity needs no delete on chunks or points.
+          type: string
+        collectorCredentialsSecret:
+          description: |-
+            Name of the secret holding the collector's credentials, the only identity that
+            deletes. Absent where nothing reclaims.
+          type: string
+      required:
+        - endpoint
+        - bucket
+    DrTransport:
+      description: Where a relationship's store lives, and how it is reached.
+      type: object
+      properties:
+        s3:
+          $ref: '#/components/schemas/DrS3Transport'
+    DrDiscovery:
+      description: |-
+        What a destination may create for itself when it meets a volume it has never seen.
+        Auto-creation is bounded rather than free: a volume outside any of these is reported
+        rather than built.
+      type: object
+      properties:
+        namespace:
+          description: Namespace a discovered volume may be created in.
+          type: string
+        storageClass:
+          description: Storage class a discovered volume is created with.
+          type: string
+        maxVolumeSize:
+          description: Largest volume that may be created, in bytes.
+          type: integer
+          format: int64
+    DrClusterPair:
+      description: |-
+        The pairing of this cluster with a peer, and the store they share. Cluster-scoped
+        rather than per-volume: many volumes name the same pair.
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/DrPairId'
+        cluster:
+          $ref: '#/components/schemas/DrClusterId'
+        clusterUid:
+          $ref: '#/components/schemas/DrClusterUid'
+        peer:
+          $ref: '#/components/schemas/DrClusterId'
+        transport:
+          $ref: '#/components/schemas/DrTransport'
+        discovery:
+          $ref: '#/components/schemas/DrDiscovery'
+      required:
+        - id
+        - cluster
+        - peer
+        - transport
+    CreateDrClusterPairBody:
+      description: Terms of a cluster pair to create or adopt.
+      type: object
+      properties:
+        cluster:
+          $ref: '#/components/schemas/DrClusterId'
+        peer:
+          $ref: '#/components/schemas/DrClusterId'
+        transport:
+          $ref: '#/components/schemas/DrTransport'
+        discovery:
+          $ref: '#/components/schemas/DrDiscovery'
+      required:
+        - cluster
+        - peer
+        - transport
     AppNodeId:
       description: App node identifier.
       example: csi-node-1
