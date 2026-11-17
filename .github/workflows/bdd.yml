@@ -68,7 +68,7 @@ jobs:
       - name: Setup tmate session
         # if: ${{ failure() }}
         timeout-minutes: 240
-        uses: owenthereal/action-upterm@v1
+        uses: owenthereal/action-upterm@v2
 
       # - name: Setup Test Pre-Requisites
       #   run: |
